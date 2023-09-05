@@ -1,17 +1,20 @@
-package main
+package report
 
 import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
 	"time"
+
+	"github.com/mikekbnv/auto-leetcode/internal/client"
+	"github.com/mikekbnv/auto-leetcode/internal/config"
 )
 
 func Report(submission_ids []int, author_msg, plagiators_msg string) {
 
 	postURL := "https://leetcode.com/contest/api/reports/"
-	referer := "https://leetcode.com/contest/" + LeetcodeConfig.ContestID + "/ranking"
-	client := NewLeetcodeHttpClient(LeetcodeConfig.CSRFToken, LeetcodeConfig.JWTToken)
+	referer := "https://leetcode.com/contest/" + config.LeetcodeConfig.ContestID + "/ranking"
+	client := client.NewLeetcodeHttpClient(config.LeetcodeConfig.CSRFToken, config.LeetcodeConfig.JWTToken)
 	for _, id := range submission_ids {
 		payload := []byte(fmt.Sprintf(`{
 			"description": "%s",
@@ -34,7 +37,7 @@ func Report(submission_ids []int, author_msg, plagiators_msg string) {
 
 		fmt.Println("Response Body:", responseBody)
 
-		time.Sleep(time.Millisecond * time.Duration(LeetcodeConfig.Delay))
+		time.Sleep(time.Millisecond * time.Duration(config.LeetcodeConfig.Delay))
 	}
 
 }

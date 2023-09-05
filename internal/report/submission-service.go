@@ -1,4 +1,4 @@
-package main
+package report
 
 import (
 	"encoding/json"
@@ -28,7 +28,7 @@ func Fetching_Submitions_With_Ids(contest_id string) map[string][]SubmissionCode
 }
 
 func fetching_SubmissionID_Code(page_num int, contest_id string) (map[string][]SubmissionCode, bool) {
-
+    // submission_code is a map of question name to a list of SubmissionCode
 	submission_code := make(map[string][]SubmissionCode)
 	page := strconv.Itoa(page_num)
 	req_link := "https://leetcode.com/contest/api/ranking/" + contest_id + "/?pagination=" + page + "&region=global"
@@ -56,12 +56,13 @@ func fetching_SubmissionID_Code(page_num int, contest_id string) (map[string][]S
 				if err != nil {
 					continue
 				} else {
-					defer resp.Body.Close()
-					var submission Solution
-					if err := json.NewDecoder(resp.Body).Decode(&submission); err != nil {
-						panic(err)
-					}
-					subid_code.Code = submission.Code
+						defer resp.Body.Close()
+						var submission Solution
+						if err := json.NewDecoder(resp.Body).Decode(&submission); err != nil {
+							panic(err)
+						}
+						subid_code.Code = submission.Code
+						subid_code.Lang = submission.Lang
 				}
 				subid_code.Submission_ID = e.ID
 				submission_code[question] = append(submission_code[question], subid_code)
@@ -71,3 +72,7 @@ func fetching_SubmissionID_Code(page_num int, contest_id string) (map[string][]S
 
 	return submission_code, true
 }
+
+
+
+

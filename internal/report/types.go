@@ -1,4 +1,4 @@
-package main
+package report
 
 type Question struct {
 	ID           int    `json:"id"`
@@ -44,4 +44,5 @@ type Solution struct {
 type SubmissionCode struct {
 	Submission_ID int
 	Code          string
+	Lang		  string
 }

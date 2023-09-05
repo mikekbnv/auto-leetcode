@@ -1,4 +1,4 @@
 csrf_token: "your_csrf_token" #from Leetcode cookies
 jwt_token: "your_LEETCODE_SESSION" #from Leetcode cookies
 contest_id: "weekly-contest-356" #from Leetcoded url links
-delay:      500 #delay for requests min 500 milliseconds
+delay:      500 #delay for requests 500 milliseconds

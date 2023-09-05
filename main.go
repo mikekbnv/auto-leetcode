@@ -1,28 +1,29 @@
+/*
+Copyright © 2023 Mike Kabanov mkkbnv18@gmail.com
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
-	"fmt"
+	"os"
+
+	"github.com/mikekbnv/auto-leetcode/cmd"
 )
 
 func main() {
-
-	//Config serivce - Func Read from file, Func Set(key, value), Get config
-	_ = CreateLeetcodeConfig()
-	fmt.Println(LeetcodeConfig)
-	submissiondata := Fetching_Submitions_With_Ids(LeetcodeConfig.ContestID)
-	fmt.Println(submissiondata)
-
-	//Detect, group similarity submissions
-
-	Report([]int{}, "", "Code from stackoverflow")
-
+	if err := cmd.Auto_Leetcode().Execute(); err != nil {
+		os.Exit(1)
+	}
 }
-
-//Fetching submitions for checking service
-//Checker service
-
-//TODO:
-//leetcode-reporter --cookie "cookie value" --delay 10 --contest-id "bi/weekly-contest-358"
-//detector-api.go
-
-//config-service.go - sengelton-service

@@ -1,10 +1,10 @@
-package main
+package client
 
 import (
 	"io"
 	"net/http"
 
-	"github.com/mikekbnv/cli-leetcode-reporter/utils"
+	"github.com/mikekbnv/auto-leetcode/internal/utils"
 )
 
 type LeetcodeHttpClient struct {

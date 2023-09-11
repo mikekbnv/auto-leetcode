@@ -60,7 +60,7 @@ func Auto_Leetcode() *cobra.Command {
 	return cmd
 }
 
-func paramsCheck() {
+func InitConfigWithParams() {
 	if contest_id != "" {
 		config.SetConfigField("contest_id", contest_id)
 	}

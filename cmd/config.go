@@ -14,13 +14,12 @@ func ConfigInit() *cobra.Command {
 	config := &cobra.Command{
 		Use:   "config",
 		Short: "Initialize the configuration",
-		Long: `...`,
+		Long:  `...`,
 		Run: func(cmd *cobra.Command, args []string) {
-			paramsCheck()
+			InitConfigWithParams()
 			fmt.Println("Config initialized successfully", config.LeetcodeConfig)
 		},
 	}
 
 	return config
 }
-

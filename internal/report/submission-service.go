@@ -2,77 +2,218 @@ package report
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/mikekbnv/auto-leetcode/internal/client"
+	"github.com/mikekbnv/auto-leetcode/internal/config"
 )
 
-func Fetching_Submitions_With_Ids(contest_id string) map[string][]SubmissionCode {
-	solutions := make(map[string][]SubmissionCode)
+const (
+	baseURL         = "https://leetcode.com/contest/api/ranking/"
+	usSubmissionURL = "https://leetcode.com/api/submissions/"
+	cnSubmissionURL = "https://leetcode.cn/api/submissions/"
+)
 
-	page_num := 1
-	page_subms, exist := fetching_SubmissionID_Code(page_num, contest_id)
+var count int64
+var httpClient = &http.Client{}
+var mu sync.Mutex
 
-	for question, value := range page_subms {
-		solutions[question] = append(solutions[question], value...)
-	}
-	for exist {
-		page_num++
-		page_subms, exist = fetching_SubmissionID_Code(page_num, contest_id)
+func Cuncurrent_Fethcing_Submitions_With_Ids(contest_id string) map[string][]Solution {
+	solutions := make(map[string][]Solution)
+	startTime := time.Now()
+	fmt.Println("Start fetching submissions...")
 
-		for question, value := range page_subms {
-			solutions[question] = append(solutions[question], value...)
-		}
-	}
+	numGoroutines := 20
 
-	return solutions
-}
+	done := make(chan struct{})
+	results := make(chan map[string][]Solution, numGoroutines)
 
-func fetching_SubmissionID_Code(page_num int, contest_id string) (map[string][]SubmissionCode, bool) {
-    // submission_code is a map of question name to a list of SubmissionCode
-	submission_code := make(map[string][]SubmissionCode)
-	page := strconv.Itoa(page_num)
-	req_link := "https://leetcode.com/contest/api/ranking/" + contest_id + "/?pagination=" + page + "&region=global"
-	resp, err := http.Get(req_link)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
+	processPages := func(startPage, endPage int, results chan<- map[string][]Solution) {
+		pageSubmissions := make(map[string][]Solution)
+		defer func() {
+			results <- pageSubmissions
+		}()
 
-	var d Contest
-	if err := json.NewDecoder(resp.Body).Decode(&d); err != nil {
-		panic(err)
-	}
-	subms := d.Submissions
-	for _, el := range subms {
-		if len(el) == 0 {
-			return submission_code, false
-		}
-		for question, e := range el {
-			if e.DataRegion == "US" {
-				var subid_code SubmissionCode
-				id := strconv.Itoa(e.SubmissionID)
-				sub := "https://leetcode.com/api/submissions/" + id
-				resp, err := http.Get(sub)
-				if err != nil {
-					continue
-				} else {
-						defer resp.Body.Close()
-						var submission Solution
-						if err := json.NewDecoder(resp.Body).Decode(&submission); err != nil {
-							panic(err)
-						}
-						subid_code.Code = submission.Code
-						subid_code.Lang = submission.Lang
-				}
-				subid_code.Submission_ID = e.ID
-				submission_code[question] = append(submission_code[question], subid_code)
+		for pageNum := startPage; pageNum < endPage; pageNum++ {
+			pageSubms, err := fetchingSubmissionIDCode(pageNum, contest_id)
+			if err != nil {
+				fmt.Println("Error fetching submissions:", err)
+				continue
+			}
+
+			for question, value := range pageSubms {
+				pageSubmissions[question] = append(pageSubmissions[question], value...)
 			}
 		}
 	}
 
-	return submission_code, true
+	pagesPerGoroutine := 10
+	for i := 0; i < numGoroutines; i++ {
+		startPage := i * pagesPerGoroutine
+		endPage := (i + 1) * pagesPerGoroutine
+		fmt.Println(startPage, endPage)
+		time.Sleep(500 * time.Millisecond)
+		go processPages(startPage, endPage, results)
+	}
+
+	// Collect results from goroutines
+	go func() {
+		for i := 0; i < numGoroutines; i++ {
+			pageSubmissions := <-results
+			for question, value := range pageSubmissions {
+				solutions[question] = append(solutions[question], value...)
+			}
+		}
+		close(done)
+	}()
+
+	<-done
+
+	elapsedTime := time.Since(startTime)
+	fmt.Println("Fetching submissions took:", elapsedTime, "count:", count)
+	return solutions
 }
 
+func fetchingSubmissionIDCode(pageNum int, contestID string) (map[string][]Solution, error) {
+	fetchedsubmissions := make(map[string][]Solution)
+	page := strconv.Itoa(pageNum)
+	reqLink := baseURL + contestID + "/?pagination=" + page + "&region=global"
+	fmt.Println(reqLink)
+	resp, err := httpClient.Get(reqLink)
+	if err != nil {
+		return fetchedsubmissions, err
+	}
+	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fetchedsubmissions, fmt.Errorf("Received non-OK status code: %s", resp.Status)
+	}
 
+	var contestData Contest
+	if err := json.NewDecoder(resp.Body).Decode(&contestData); err != nil {
+		return fetchedsubmissions, err
+	}
 
+	submissions := contestData.Submissions
+	if len(submissions) == 0 {
+		return fetchedsubmissions, errors.New("No submissions found")
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(submissions))
+
+	for _, submissionList := range submissions {
+		time.Sleep(1 * time.Second)
+		go func(submissionList map[string]Question) {
+			defer wg.Done()
+
+			for question, submission := range submissionList {
+				submissionCode, err := fetchSubmissionCode(submission.DataRegion, submission.SubmissionID)
+				if err != nil {
+					fmt.Printf("Error fetching submission code for question %s: %v\n", question, err)
+					continue
+				}
+
+				mu.Lock()
+				fetchedsubmissions[question] = append(fetchedsubmissions[question], submissionCode)
+				mu.Unlock()
+			}
+		}(submissionList)
+	}
+
+	wg.Wait()
+	return fetchedsubmissions, nil
+}
+
+func fetchSubmissionCode(region string, sub_id int) (Solution, error) {
+	var submissionData Solution
+	id := strconv.Itoa(sub_id)
+	subURL := usSubmissionURL
+	if region != "US" {
+		time.Sleep(500 * time.Millisecond)
+		subURL = cnSubmissionURL
+		//return Solution{}, errors.New("not US region")
+	}
+	subURL += id
+
+	time.Sleep(500 * time.Millisecond)
+	resp, err := httpClient.Get(subURL)
+	if err != nil {
+		return submissionData, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return submissionData, fmt.Errorf("received non-OK status code: %s", resp.Status)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&submissionData); err != nil {
+		return submissionData, err
+	}
+
+	atomic.AddInt64(&count, 1)
+	return submissionData, nil
+}
+
+// Taking any submission code by submission id, since for contest there is api but for regular submissions need to parse html
+func FetchSubmissionCode() (string, error) {
+	url := "https://leetcode.com/submissions/detail/1038989061/"
+	client := client.NewLeetcodeHttpClient(config.LeetcodeConfig.CSRFToken, config.LeetcodeConfig.JWTToken)
+
+	resp, err := client.Get(url, "application/json")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("received non-OK status code: %s", resp.Status)
+	}
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	body := string(bodyBytes)
+
+	pattern := `submissionCode:\s('[^']*')`
+
+	re := regexp.MustCompile(pattern)
+
+	match := re.FindStringSubmatch(body)
+
+	if len(match) != 2 {
+		return "", fmt.Errorf("no submission code found in the response")
+	}
+
+	submissionCode := match[1]
+	fmt.Println(convertUnicodeEscape(submissionCode))
+	return "", nil
+}
+
+func convertUnicodeEscape(input string) (string, error) {
+	re := regexp.MustCompile(`\\u[0-9A-Fa-f]{4}`)
+	result := re.ReplaceAllStringFunc(input, func(matched string) string {
+		code := matched[2:]
+		unicodeValue := stringToUnicode(code)
+		return unicodeValue
+	})
+
+	return result, nil
+}
+func stringToUnicode(s string) string {
+	unicodeValue, err := strconv.ParseInt(s, 16, 32)
+	if err != nil {
+		return s
+	}
+	return string(unicodeValue)
+}

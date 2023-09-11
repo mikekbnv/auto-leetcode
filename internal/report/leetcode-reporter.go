@@ -3,7 +3,7 @@ package report
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"time"
 
 	"github.com/mikekbnv/auto-leetcode/internal/client"
@@ -12,7 +12,7 @@ import (
 
 func Report(submission_ids []int, author_msg, plagiators_msg string) {
 
-	postURL := "https://leetcode.com/contest/api/reports/"
+	postURL := "https://leetcode.com/contest/api/reports/" //"https://leetcode.com/contest/api/reports/lccn"
 	referer := "https://leetcode.com/contest/" + config.LeetcodeConfig.ContestID + "/ranking"
 	client := client.NewLeetcodeHttpClient(config.LeetcodeConfig.CSRFToken, config.LeetcodeConfig.JWTToken)
 	for _, id := range submission_ids {
@@ -28,7 +28,7 @@ func Report(submission_ids []int, author_msg, plagiators_msg string) {
 			return
 		}
 		defer resp.Body.Close()
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			fmt.Println("Error reading response body:", err)
 			return

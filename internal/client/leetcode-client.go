@@ -37,6 +37,20 @@ func (c *LeetcodeHttpClient) Post(url, referer, contentType string, body io.Read
 	return c.httpClient.Do(req)
 }
 
+func (c *LeetcodeHttpClient) Get(url,contentType string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Add("Cookie", buildCookie(utils.Keyvalue{Key: "csrftoken", Value: c.csrf_token}, utils.Keyvalue{Key: "LEETCODE_SESSION", Value: c.jwt_token}))
+	req.Header.Add("X-Csrftoken", c.csrf_token)
+	//req.Header.Add("referer", referer)
+
+	return c.httpClient.Do(req)
+}
+
 func buildCookie(pairs ...utils.Keyvalue) string {
 	cookie := ""
 
